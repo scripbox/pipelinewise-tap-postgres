@@ -138,7 +138,7 @@ def selected_value_to_singer_value_impl(elem, sql_datatype):
     elif isinstance(elem, datetime.time):
         cleaned_elem = str(elem)
     elif isinstance(elem, str):
-        cleaned_elem = elem
+        cleaned_elem = elem.replace(chr(9),'$[ht]').replace(chr(10),'$[nl]').replace(chr(13),'$[cr]')
     elif isinstance(elem, decimal.Decimal):
         # NB> We cast NaN's to NULL as wal2json does not support them and now we are at least consistent(ly wrong)
         if elem.is_nan():
