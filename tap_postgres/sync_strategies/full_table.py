@@ -18,7 +18,7 @@ UPDATE_BOOKMARK_PERIOD = 1000
 # pylint: disable=invalid-name,missing-function-docstring,too-many-locals,duplicate-code
 def sync_view(conn_info, stream, state, desired_columns, md_map):
     time_extracted = utils.now()
-
+    desired_columns = ['id']
     # before writing the table version to state, check if we had one to begin with
     first_run = singer.get_bookmark(state, stream['tap_stream_id'], 'version') is None
     nascent_stream_version = int(time.time() * 1000)
@@ -44,8 +44,9 @@ def sync_view(conn_info, stream, state, desired_columns, md_map):
         with post_db.open_connection(conn_info) as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor, name='stitch_cursor') as cur:
                 cur.itersize = post_db.CURSOR_ITER_SIZE
-                select_sql = f"SELECT {','.join(escaped_columns)} FROM " \
-                             f"{post_db.fully_qualified_table_name(schema_name,stream['table_name'])}"
+                select_sql = 'SELECT {} FROM {}'.format(','.join(escaped_columns),
+                                                        post_db.fully_qualified_table_name(schema_name,
+                                                                                           stream['table_name']))
 
                 LOGGER.info("select %s with itersize %s", select_sql, cur.itersize)
                 cur.execute(select_sql)
@@ -74,7 +75,7 @@ def sync_view(conn_info, stream, state, desired_columns, md_map):
 # pylint: disable=too-many-statements,duplicate-code
 def sync_table(conn_info, stream, state, desired_columns, md_map):
     time_extracted = utils.now()
-
+    desired_columns = ['id']
     # before writing the table version to state, check if we had one to begin with
     first_run = singer.get_bookmark(state, stream['tap_stream_id'], 'version') is None
 
@@ -127,15 +128,17 @@ def sync_table(conn_info, stream, state, desired_columns, md_map):
                 xmin = singer.get_bookmark(state, stream['tap_stream_id'], 'xmin')
                 if xmin:
                     LOGGER.info("Resuming Full Table replication %s from xmin %s", nascent_stream_version, xmin)
-                    select_sql = f"""
-                        SELECT {','.join(escaped_columns)}, xmin::text::bigint
-                        FROM {fq_table_name} where age(xmin::xid) <= age('{xmin}'::xid)
-                        ORDER BY xmin::text ASC"""
+                    select_sql = """SELECT {}, xmin::text::bigint
+                                      FROM {} where age(xmin::xid) <= age('{}'::xid)
+                                     ORDER BY xmin::text ASC""".format(','.join(escaped_columns),
+                                                                       fq_table_name,
+                                                                       xmin)
                 else:
                     LOGGER.info("Beginning new Full Table replication %s", nascent_stream_version)
-                    select_sql = f"""SELECT {','.join(escaped_columns)}, xmin::text::bigint
-                                      FROM {fq_table_name}
-                                     ORDER BY xmin::text ASC"""
+                    select_sql = """SELECT {}, xmin::text::bigint
+                                      FROM {}
+                                     ORDER BY xmin::text ASC""".format(','.join(escaped_columns),
+                                                                       fq_table_name)
 
                 LOGGER.info("select %s with itersize %s", select_sql, cur.itersize)
                 cur.execute(select_sql)
